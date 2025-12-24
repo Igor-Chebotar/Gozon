@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Гоzон - Интернет-магазин</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        h1 { color: #6b2d9b; margin-bottom: 20px; }
+        .section { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h2 { color: #333; margin-bottom: 15px; border-bottom: 2px solid #6b2d9b; padding-bottom: 5px; }
+        input, button { padding: 10px; margin: 5px; border-radius: 4px; }
+        input { border: 1px solid #ddd; width: 200px; }
+        button { background: #6b2d9b; color: white; border: none; cursor: pointer; }
+        button:hover { background: #5a2480; }
+        .result { background: #f9f9f9; padding: 10px; margin-top: 10px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; }
+        .balance { font-size: 24px; color: #2e7d32; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #6b2d9b; color: white; }
+        .status-NEW { color: #ff9800; }
+        .status-FINISHED { color: #4caf50; }
+        .status-CANCELLED { color: #f44336; }
+        .row { display: flex; gap: 20px; }
+        .col { flex: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Гоzон</h1>
+        
+        <div class="section">
+            <h2>Пользователь</h2>
+            <input type="text" id="userId" placeholder="User ID" value="user1">
+            <button onclick="loadData()">Загрузить данные</button>
+        </div>
+
+        <div class="row">
+            <div class="col">
+                <div class="section">
+                    <h2>Счет</h2>
+                    <div id="balanceDisplay" class="balance">-</div>
+                    <br>
+                    <button onclick="createAccount()">Создать счёт</button>
+                    <br><br>
+                    <input type="number" id="topupAmount" placeholder="Сумма" value="1000">
+                    <button onclick="topUp()">Пополнить</button>
+                </div>
+            </div>
+            <div class="col">
+                <div class="section">
+                    <h2>Новый заказ</h2>
+                    <input type="number" id="orderAmount" placeholder="Сумма" value="100">
+                    <input type="text" id="orderDesc" placeholder="Описание" value="Товар">
+                    <button onclick="createOrder()">Создать заказ</button>
+                    <div id="orderResult" class="result" style="display:none"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Мои заказы</h2>
+            <button onclick="loadOrders()">Обновить</button>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Сумма</th>
+                        <th>Описание</th>
+                        <th>Статус</th>
+                        <th>Дата</th>
+                    </tr>
+                </thead>
+                <tbody id="ordersTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:8080/api';
+
+        function getUserId() {
+            return document.getElementById('userId').value;
+        }
+
+        async function loadData() {
+            await loadBalance();
+            await loadOrders();
+        }
+
+        async function createAccount() {
+            try {
+                const res = await fetch(API + '/accounts', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({userId: getUserId()})
+                });
+                const data = await res.json();
+                if (data.error) {
+                    alert('Ошибка: ' + data.error);
+                } else {
+                    alert('Счёт создан!');
+                    loadBalance();
+                }
+            } catch (e) {
+                alert('Ошибка: ' + e.message);
+            }
+        }
+
+        async function loadBalance() {
+            try {
+                const res = await fetch(API + '/accounts/' + getUserId());
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('balanceDisplay').textContent = data.balance + ' руб.';
+                } else {
+                    document.getElementById('balanceDisplay').textContent = 'Нет счёта';
+                }
+            } catch (e) {
+                document.getElementById('balanceDisplay').textContent = 'Ошибка';
+            }
+        }
+
+        async function topUp() {
+            try {
+                const amount = document.getElementById('topupAmount').value;
+                const res = await fetch(API + '/accounts/topup', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({userId: getUserId(), amount: parseFloat(amount)})
+                });
+                const data = await res.json();
+                if (data.error) {
+                    alert('Ошибка: ' + data.error);
+                } else {
+                    loadBalance();
+                }
+            } catch (e) {
+                alert('Ошибка: ' + e.message);
+            }
+        }
+
+        async function createOrder() {
+            try {
+                const amount = document.getElementById('orderAmount').value;
+                const desc = document.getElementById('orderDesc').value;
+                const res = await fetch(API + '/orders', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        userId: getUserId(),
+                        amount: parseFloat(amount),
+                        description: desc
+                    })
+                });
+                const data = await res.json();
+                document.getElementById('orderResult').style.display = 'block';
+                document.getElementById('orderResult').textContent = 'Заказ создан: ' + data.id;
+                loadOrders();
+                setTimeout(loadBalance, 2000);
+                setTimeout(loadOrders, 2000);
+            } catch (e) {
+                alert('Ошибка: ' + e.message);
+            }
+        }
+
+        async function loadOrders() {
+            try {
+                const res = await fetch(API + '/orders?userId=' + getUserId());
+                const orders = await res.json();
+                const tbody = document.getElementById('ordersTable');
+                tbody.innerHTML = '';
+                orders.forEach(order => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${order.id.substring(0, 8)}...</td>
+                        <td>${order.amount} руб.</td>
+                        <td>${order.description || '-'}</td>
+                        <td class="status-${order.status}">${order.status}</td>
+                        <td>${new Date(order.createdAt).toLocaleString()}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        loadData();
+    </script>
+</body>
+</html>
